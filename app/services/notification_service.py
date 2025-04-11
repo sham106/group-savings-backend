@@ -60,7 +60,7 @@ class NotificationService:
             context = {
                 'recipient_name': recipient.username,
                 'sender_name': sender.username if sender else 'Someone',
-                'amount': 'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
+                'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
                 'group_name': group.name,
                 'current_amount': group.current_amount,
                 'target_amount': group.target_amount,
@@ -74,7 +74,7 @@ class NotificationService:
             context = {
                 'recipient_name': recipient.username,
                 'sender_name': sender.username if sender else 'Someone',
-                'amount': 'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
+                'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
                 'group_name': group.name,
                 'reason': notification.message,
                 'dashboard_url': f"{base_url}/dashboard/group/{group.id}/withdrawals"
@@ -87,7 +87,7 @@ class NotificationService:
             context = {
                 'recipient_name': recipient.username,
                 'approver_name': sender.username if sender else 'An admin',
-                'amount': 'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
+                'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
                 'group_name': group.name,
                 'current_amount': group.current_amount,
                 'dashboard_url': f"{base_url}/dashboard/group/{group.id}"
@@ -100,7 +100,7 @@ class NotificationService:
             context = {
                 'recipient_name': recipient.username,
                 'approver_name': sender.username if sender else 'An admin',
-                'amount': 'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
+                'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
                 'group_name': group.name,
                 'reason': notification.message,
                 'dashboard_url': f"{base_url}/dashboard/group/{group.id}"
