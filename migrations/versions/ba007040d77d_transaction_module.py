@@ -1,6 +1,8 @@
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import text
+
 
 # revision identifiers, used by Alembic
 revision = 'ba007040d77d'
@@ -13,7 +15,7 @@ def upgrade():
     
     # Check if ENUM exists before creating
     conn = op.get_bind()
-    result = conn.execute("SELECT 1 FROM pg_type WHERE typname = 'transactiontype'")
+    result = conn.execute(text("SELECT 1 FROM pg_type WHERE typname = 'transactiontype'"))
     
     if result.fetchone() is None:
         transaction_type_enum.create(op.get_bind(), checkfirst=True)
