@@ -1,4 +1,3 @@
-# app/services/notification_service.py
 from app import db
 from app.models.notification import Notification, NotificationType
 from app.services.email_service import EmailService
@@ -8,7 +7,7 @@ from flask import current_app
 
 class NotificationService:
     @staticmethod
-    def create_notification(type, recipient_id, sender_id, group_id, message, reference_id=None, send_email=True):
+    def create_notification(type, recipient_id, sender_id, group_id, message, reference_id=None, reference_amount=None, send_email=True):
         """
         Create a notification and optionally send an email
         """
@@ -18,7 +17,10 @@ class NotificationService:
             recipient_id=recipient_id,
             sender_id=sender_id,
             group_id=group_id,
-            reference_id=reference_id
+            reference_id=reference_id,
+            
+            reference_amount=reference_amount  # Add this line
+
         )
         
         try:
@@ -91,6 +93,19 @@ class NotificationService:
                 'dashboard_url': f"{base_url}/dashboard/group/{group.id}"
             }
             subject = f"Withdrawal Approved for {group.name}"
+            
+        elif notification.type == NotificationType.WITHDRAWAL_REJECTED:
+            # For withdrawal rejection notifications
+            template = EmailService.get_withdrawal_rejection_template()
+            context = {
+                'recipient_name': recipient.username,
+                'approver_name': sender.username if sender else 'An admin',
+                'amount': abs(notification.reference_amount) if hasattr(notification, 'reference_amount') else '(amount not specified)',
+                'group_name': group.name,
+                'reason': notification.message,
+                'dashboard_url': f"{base_url}/dashboard/group/{group.id}"
+            }
+            subject = f"Withdrawal Request Rejected for {group.name}"
             
         else:
             # Generic notification
@@ -249,12 +264,14 @@ class NotificationService:
             sender_id=approver_id,
             group_id=group.id,
             message=notification_message,
-            reference_id=withdrawal_request.id
+            reference_id=withdrawal_request,
+            
+            reference_amount=withdrawal_request.amount  
         )
 
-        # Send email notification - FIXED VERSION
+        # Send email notification
         email_subject = "Withdrawal Request Rejected"
-        email_template = EmailService.get_withdrawal_rejection_template()  # You'll need to create this
+        email_template = EmailService.get_withdrawal_rejection_template()
         context = {
             'recipient_name': requester.username,
             'approver_name': approver.username,
@@ -273,19 +290,5 @@ class NotificationService:
             )
         except Exception as e:
             current_app.logger.error(f"Failed to send rejection email: {str(e)}")
-
-        @staticmethod
-        def send_email(recipient_email, subject, body):
-            """Send an email to the specified recipient."""
-            try:
-                # Assuming EmailService is already configured in the app
-                EmailService.send_email(
-                    to=recipient_email,
-                    subject=subject,
-                    body=body
-                )
-            except Exception as e:
-                current_app.logger.error(f"Failed to send email to {recipient_email}: {str(e)}")
-                raise
-            
         
+        return True  # Return value to indicate success

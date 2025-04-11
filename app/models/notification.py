@@ -28,6 +28,8 @@ class Notification(db.Model):
     # The ID of the related transaction or withdrawal
     reference_id = db.Column(db.Integer, nullable=True)
     
+    reference_amount = db.Column(db.Float, nullable=True)
+
     # Relationships
     recipient = db.relationship('User', foreign_keys=[recipient_id], backref=db.backref('notifications_received', lazy=True))
     sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('notifications_sent', lazy=True))
