@@ -52,7 +52,7 @@ class NotificationService:
         Send an email based on notification type
         """
         # Base URL for dashboard links
-        base_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
+        base_url = current_app.config.get('FRONTEND_URL', 'https://group-savings.vercel.app')
         
         if notification.type == NotificationType.CONTRIBUTION:
             # For contribution notifications

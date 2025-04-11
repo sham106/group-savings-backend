@@ -191,6 +191,8 @@ class EmailService:
                 .header { background-color: #f44336; color: white; padding: 10px; text-align: center; }
                 .content { padding: 20px; background-color: #f9f9f9; }
                 .footer { font-size: 12px; color: #777; margin-top: 20px; }
+                .button { display: inline-block; background-color: # f44336; color: white; padding: 10px 20px; 
+                          text-decoration: none; border-radius: 5px; margin-top: 20px; }
             </style>
         </head>
         <body>
@@ -203,6 +205,7 @@ class EmailService:
                     <p>We regret to inform you that your withdrawal request for <strong>${{ amount }}</strong> from the <strong>{{ group_name }}</strong> group has been rejected.</p>
                     <p>Reason: {{ admin_comment }}</p>
                     <p>If you have any questions, please contact your group admin.</p>
+                    <a href="{{ dashboard_url }}" class="button">View Details</a>
                 </div>
                 <div class="footer">
                     <p>This is an automated message from the Group Savings App. Please do not reply to this email.</p>
