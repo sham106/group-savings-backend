@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: group-savings-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+      - key: JWT_SECRET_KEY
+      - key: DATABASE_URL
+      - key: FLASK_ENV
+      - key: DEBUG
+      - key: SMTP_SERVER
+      - key: SMTP_PORT
+      - key: SMTP_USERNAME
+      - key: SMTP_PASSWORD
+      - key: SENDER_EMAIL
+      - key: FRONTEND_URL
+      - key: MPESA_CONSUMER_KEY
+      - key: MPESA_CONSUMER_SECRET
+      - key: MPESA_BUSINESS_SHORTCODE
+      - key: MPESA_PASSKEY
+      - key: MPESA_ENVIRONMENT
