@@ -264,7 +264,7 @@ class NotificationService:
             sender_id=approver_id,
             group_id=group.id,
             message=notification_message,
-            reference_id=withdrawal_request,
+            reference_id=withdrawal_request.id,
             
             reference_amount=withdrawal_request.amount  
         )
