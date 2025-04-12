@@ -77,7 +77,7 @@ class NotificationService:
                 'amount': abs(notification.reference_amount) if notification.reference_amount is not None else '(amount not specified)',
                 'group_name': group.name,
                 'reason': notification.message,
-                'dashboard_url': f"{base_url}/dashboard/group/{group.id}/withdrawals"
+                'dashboard_url': f"{base_url}/dashboard/group/{group.id}"
             }
             subject = f"Withdrawal Request for {group.name}"
             
@@ -270,25 +270,25 @@ class NotificationService:
         )
 
         # Send email notification
-        email_subject = "Withdrawal Request Rejected"
-        email_template = EmailService.get_withdrawal_rejection_template()
-        context = {
-            'recipient_name': requester.username,
-            'approver_name': approver.username,
-            'amount': withdrawal_request.amount,
-            'group_name': group.name,
-            'reason': withdrawal_request.admin_comment or 'No reason provided.',
-            'dashboard_url': f"{current_app.config.get('FRONTEND_URL', 'http://localhost:5173')}/dashboard/group/{group.id}"
-        }
+        # email_subject = "Withdrawal Request Rejected"
+        # email_template = EmailService.get_withdrawal_rejection_template()
+        # context = {
+        #     'recipient_name': requester.username,
+        #     'approver_name': approver.username,
+        #     'amount': withdrawal_request.amount,
+        #     'group_name': group.name,
+        #     'reason': withdrawal_request.admin_comment or 'No reason provided.',
+        #     'dashboard_url': f"{current_app.config.get('FRONTEND_URL', 'http://localhost:5173')}/dashboard/group/{group.id}"
+        # }
         
-        try:
-            EmailService.send_email(
-                recipient_email=requester.email,
-                subject=email_subject,
-                template_string=email_template,
-                context=context
-            )
-        except Exception as e:
-            current_app.logger.error(f"Failed to send rejection email: {str(e)}")
+        # try:
+        #     EmailService.send_email(
+        #         recipient_email=requester.email,
+        #         subject=email_subject,
+        #         template_string=email_template,
+        #         context=context
+        #     )
+        # except Exception as e:
+        #     current_app.logger.error(f"Failed to send rejection email: {str(e)}")
         
-        return True  # Return value to indicate success
+        # return True  # Return value to indicate success
