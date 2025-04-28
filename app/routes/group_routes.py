@@ -5,7 +5,7 @@ from app.models.user import User, UserRole
 from app.models.groups import Group, group_members
 from app.utils.validators import GroupSchema, JoinGroupSchema
 from app.utils.role_decorators import group_admin_required
-from backend.app.services.notification_service import NotificationService
+from app.services.notification_service import NotificationService
 from marshmallow import ValidationError
 from sqlalchemy import and_
 from app.services.mpesa_service import MpesaService
