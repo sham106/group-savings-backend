@@ -1,7 +1,7 @@
 # app/routes/notification_routes.py
 from flask import Blueprint, jsonify, request, current_app
 from app.services.notification_service import NotificationService
-from app.models.notification import Notification
+from app.models.notification import Notification, NotificationType
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -11,24 +11,9 @@ notification_bp = Blueprint('notifications', __name__)
 @jwt_required()
 def get_notifications():
     """Get notifications for the current user"""
-    unread_only = request.args.get('unread', 'false').lower() == 'true'
-    limit = int(request.args.get('limit', 20))
     current_user_id = get_jwt_identity()
-
-    notifications = NotificationService.get_user_notifications(
-        current_user_id, 
-        limit=limit, 
-        unread_only=unread_only
-    )
-
-    return jsonify({
-        'success': True,
-        'notifications': [n.to_dict() for n in notifications],
-        'unread_count': Notification.query.filter_by(
-            recipient_id=current_user_id, 
-            read=False
-        ).count()
-    })
+    notifications = Notification.query.filter_by(recipient_id=current_user_id).order_by(Notification.created_at.desc()).all()
+    return jsonify([n.to_dict() for n in notifications])
 
 @notification_bp.route('/mark-read/<int:notification_id>', methods=['POST'])
 @jwt_required()
@@ -101,3 +86,5 @@ def test_notification():
         'success': False,
         'message': 'Failed to send test notification'
     }), 500
+
+

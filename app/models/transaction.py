@@ -8,6 +8,9 @@ from enum import Enum
 class TransactionType(Enum):
     CONTRIBUTION = "CONTRIBUTION"
     WITHDRAWAL = "WITHDRAWAL"
+    LOAN_REQUEST = 'loan_request'
+    LOAN_REPAYMENT = 'loan_repayment'
+    LOAN_DISBURSEMENT = 'loan_disbursement'
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'

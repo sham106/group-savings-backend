@@ -4,6 +4,7 @@ from app.services.email_service import EmailService
 from app.models.user import User
 from app.models.groups import Group, group_members
 from flask import current_app
+from datetime import datetime
 
 class NotificationService:
     @staticmethod
@@ -177,6 +178,7 @@ class NotificationService:
         contributor = User.query.get(contributor_id)
         
         if not group or not contributor:
+            current_app.logger.error(f"Invalid group ({group_id}) or contributor ({contributor_id})")
             return False
             
         message = f"{contributor.username} contributed Ksh.{amount} to {group.name}"
@@ -184,15 +186,18 @@ class NotificationService:
         # Get all members except the contributor
         for member in group.members:
             if member.id != contributor_id:
-                NotificationService.create_notification(
-                    type=NotificationType.CONTRIBUTION,
-                    recipient_id=member.id,
-                    sender_id=contributor_id,
-                    group_id=group_id,
-                    message=message,
-                    reference_id=transaction_id
-                )
-                
+                try:
+                    NotificationService.create_notification(
+                        type=NotificationType.CONTRIBUTION,
+                        recipient_id=member.id,
+                        sender_id=contributor_id,
+                        group_id=group_id,
+                        message=message,
+                        reference_id=transaction_id
+                    )
+                    current_app.logger.info(f"Notification created for member {member.id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to create notification for member {member.id}: {str(e)}")
         return True
         
     @staticmethod
@@ -292,3 +297,108 @@ class NotificationService:
             current_app.logger.error(f"Failed to send rejection email: {str(e)}")
         
         return True  # Return value to indicate success
+    
+    
+# >>>>>>>>>> LOAN >>>>>>>>>>>> #
+    @staticmethod
+    def notify_admins_about_loan_request(group_id, requester_id, loan_id, amount):
+        """Notify group admins about a new loan request."""
+        from app.models.user import User
+        from app.models.notification import Notification, NotificationType
+        
+        # Get the requester user object
+        requester = User.query.get(requester_id)
+        if not requester:
+            current_app.logger.error(f"Requester {requester_id} not found")
+            return False
+
+        # Get all admin members of the group
+        admins = db.session.query(User).join(
+            group_members, User.id == group_members.c.user_id
+        ).filter(
+            group_members.c.group_id == group_id,
+            group_members.c.is_admin == True
+        ).all()
+
+        for admin in admins:
+            NotificationService.create_notification(
+                type=NotificationType.LOAN_REQUEST,
+                recipient_id=admin.id,
+                sender_id=requester_id,
+                group_id=group_id,
+                message=f"{requester.username} requested a loan of ${amount}",
+                reference_id=loan_id,
+                reference_amount=amount
+            )
+        return True
+
+    @staticmethod
+    def notify_user_about_loan_approval(user_id, loan_id, amount, group_id):
+        """Notify user that their loan was approved"""
+        from app.models.notification import Notification, NotificationType
+        
+        NotificationService.create_notification(
+            type=NotificationType.LOAN_APPROVED,
+            recipient_id=user_id,
+            group_id=group_id,
+            message=f"Your loan request for ${amount} has been approved",
+            reference_id=loan_id,
+            reference_amount=amount
+        )
+
+    @staticmethod
+    def notify_user_about_loan_rejection(user_id, loan_id, amount, group_id, reason):
+        """Notify user that their loan was rejected"""
+        from app.models.notification import Notification, NotificationType
+        
+        NotificationService.create_notification(
+            type=NotificationType.LOAN_REJECTED,
+            recipient_id=user_id,
+            group_id=group_id,
+            message=f"Your loan request for ${amount} was rejected. Reason: {reason}",
+            reference_id=loan_id,
+            reference_amount=amount
+        )
+
+    @staticmethod
+    def notify_admins_about_loan_repayment(group_id, payer_id, loan_id, amount):
+        """Notify group admins about a loan repayment"""
+        from app.models.user import User
+        from app.models.notification import Notification, NotificationType
+        
+        payer = User.query.get(payer_id)
+        if not payer:
+            current_app.logger.error(f"Payer {payer_id} not found")
+            return False
+
+        admins = db.session.query(User).join(
+            group_members, User.id == group_members.c.user_id
+        ).filter(
+            group_members.c.group_id == group_id,
+            group_members.c.is_admin == True
+        ).all()
+        
+        for admin in admins:
+            NotificationService.create_notification(
+                type=NotificationType.LOAN_REPAYMENT,
+                recipient_id=admin.id,
+                sender_id=payer_id,
+                group_id=group_id,
+                message=f"{payer.username} made a ${amount} repayment on loan #{loan_id}",
+                reference_id=loan_id,
+                reference_amount=amount
+            )
+        return True
+
+    @staticmethod
+    def notify_mpesa_transaction(user_id, transaction_id, amount, status):
+        """Notify user about an M-Pesa transaction."""
+        from app.models.notification import Notification, NotificationType
+
+        message = f"M-Pesa transaction {transaction_id} of ${amount} is {status}."
+        NotificationService.create_notification(
+            type=NotificationType.MPESA_TRANSACTION,
+            recipient_id=user_id,
+            message=message,
+            reference_id=transaction_id,
+        )

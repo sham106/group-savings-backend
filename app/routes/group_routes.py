@@ -1,16 +1,20 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from app.models.user import User, UserRole
 from app.models.groups import Group, group_members
 from app.utils.validators import GroupSchema, JoinGroupSchema
 from app.utils.role_decorators import group_admin_required
+from backend.app.services.notification_service import NotificationService
 from marshmallow import ValidationError
 from sqlalchemy import and_
 from app.services.mpesa_service import MpesaService
 from app.models.transaction import Transaction
+from app.models.notification import Notification  # Import Notification
+from app.models.loan import Loan, LoanStatus, LoanRepayment, RepaymentStatus
+from sqlalchemy import func
 
-
+# Ensure Blueprint is imported
 group_bp = Blueprint('groups', __name__)
 
 group_schema = GroupSchema()
@@ -57,22 +61,28 @@ def create_group():
 @jwt_required()
 def get_user_groups():
     """Get all groups user belongs to"""
-    current_user_id = get_jwt_identity()
-    
-    # Get user's groups
-    user = User.query.get_or_404(current_user_id)
-    groups = []
-    
-    for group in user.groups:
-        group_dict = group.to_dict()
-        # Add member status (admin or regular member)
-        group_dict['member_status'] = Group.get_member_status(group.id, current_user_id)
-        groups.append(group_dict)
-    
-    return jsonify({
-        "groups": groups,
-        "count": len(groups)
-    }), 200
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Get user's groups
+        user = User.query.get_or_404(current_user_id)
+        groups = []
+        
+        for group in user.groups:
+            group_dict = group.to_dict()
+            # Add member status (admin or regular member)
+            group_dict['member_status'] = Group.get_member_status(group.id, current_user_id)
+            groups.append(group_dict)
+        
+        return jsonify({
+            "groups": groups,
+            "count": len(groups)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "error": "Failed to fetch user groups",
+            "details": str(e)
+        }), 500
 
 @group_bp.route('/<int:group_id>', methods=['GET'])
 @jwt_required()
@@ -129,15 +139,19 @@ def join_group():
         return jsonify({"message": "Already a member of this group"}), 400
     
     # Add user as member
-    if Group.add_member(group_id, current_user_id):
-        return jsonify({
-            "message": "Successfully joined group",
-            "group": group.to_dict()
-        }), 200
-    else:
-        return jsonify({"error": "Failed to join group"}), 500
+    try:
+        if Group.add_member(group_id, current_user_id):
+            db.session.commit()
+            return jsonify({
+                "message": "Successfully joined group",
+                "group": group.to_dict()
+            }), 200
+        else:
+            return jsonify({"error": "Failed to join group"}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
-# ****************
 @group_bp.route('/discover', methods=['GET'])
 @jwt_required()
 def get_discoverable_groups():
@@ -188,12 +202,17 @@ def leave_group(group_id):
             }), 400
     
     # Remove user from group
-    if Group.remove_member(group_id, current_user_id):
-        return jsonify({"message": "Successfully left the group"}), 200
-    else:
-        return jsonify({"error": "Failed to leave group"}), 500
+    try:
+        if Group.remove_member(group_id, current_user_id):
+            db.session.commit()
+            return jsonify({"message": "Successfully left the group"}), 200
+        else:
+            return jsonify({"error": "Failed to leave group"}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
-@group_bp.route('/<int:group_id>/members', methods=['GET'])
+@group_bp.route('/<int:group_id>/members', methods=['GET'], endpoint='get_group_members')
 @jwt_required()
 def get_group_members(group_id):
     """Get all members of a group"""
@@ -228,10 +247,7 @@ def get_group_members(group_id):
         "count": len(members)
     }), 200
 
-
-
-# Admin can add new members to a certain group
-@group_bp.route('/<int:group_id>/members', methods=['POST'])
+@group_bp.route('/<int:group_id>/members', methods=['POST'], endpoint='add_member_to_group')
 @jwt_required()
 @group_admin_required
 def add_member_to_group(group_id):
@@ -253,15 +269,19 @@ def add_member_to_group(group_id):
             return jsonify({"message": "User is already a member of this group"}), 400
             
         # Add user to group
-        if Group.add_member(group_id, user_id):
-            return jsonify({"message": "User successfully added to group"}), 200
-        else:
-            return jsonify({"error": "Failed to add user to group"}), 500
+        try:
+            if Group.add_member(group_id, user_id):
+                db.session.commit()
+                return jsonify({"message": "User successfully added to group"}), 200
+            else:
+                return jsonify({"error": "Failed to add user to group"}), 500
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
-    
+
 @group_bp.route('/<int:group_id>/admin/<int:user_id>', methods=['POST'])
 @jwt_required()
 @group_admin_required
@@ -292,9 +312,7 @@ def make_admin(group_id, user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to update admin status", "details": str(e)}), 500
-    
-    
-###### UPDATE GROUP DETAILS ######
+
 @group_bp.route('/<int:group_id>', methods=['PUT'])
 @jwt_required()
 def update_group(group_id):
@@ -343,9 +361,7 @@ def update_group(group_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to update group: {str(e)}'}), 500
-    
-    
-# **************** Admin can remove members from certain groups ************ 
+
 @group_bp.route('/<int:group_id>/members/<int:user_id>', methods=['DELETE'])
 @jwt_required()
 @group_admin_required
@@ -369,10 +385,15 @@ def remove_member(group_id, user_id):
         return jsonify({"error": "Cannot remove the group creator"}), 403
     
     # Remove user from group
-    if Group.remove_member(group_id, user_id):
-        return jsonify({"message": "Member successfully removed from group"}), 200
-    else:
-        return jsonify({"error": "Failed to remove member"}), 500
+    try:
+        if Group.remove_member(group_id, user_id):
+            db.session.commit()
+            return jsonify({"message": "Member successfully removed from group"}), 200
+        else:
+            return jsonify({"error": "Failed to remove member"}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @group_bp.route('/<int:group_id>/promote/<int:user_id>', methods=['POST'])
 @jwt_required()
@@ -415,18 +436,17 @@ def promote_member(group_id, user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to promote user", "details": str(e)}), 500
-    
-# ***********MPESA INTERGRATION ************ #
 
 @group_bp.route('/<int:group_id>/contribute/mpesa', methods=['POST'])
 @jwt_required()
 def initiate_mpesa_contribution(group_id):
     """Initiate M-Pesa contribution"""
     from app.models.transaction import Transaction, TransactionType
-    
+    # Removed redundant import of Group model
+
     current_user_id = get_jwt_identity()
     data = request.get_json()
-    
+
     # Validate input
     if not data or 'phone_number' not in data or 'amount' not in data:
         return jsonify({"error": "Phone number and amount are required"}), 400
@@ -440,7 +460,7 @@ def initiate_mpesa_contribution(group_id):
     
     # Get group details
     group = Group.query.get_or_404(group_id)
-    
+
     # Check if user is member
     if not Group.get_member_status(group_id, current_user_id):
         return jsonify({"error": "You are not a member of this group"}), 403
@@ -454,13 +474,13 @@ def initiate_mpesa_contribution(group_id):
             account_reference=f"GROUP{group_id}",
             description=f"Contribution to {group.name}"
         )
-        
+
         # Create transaction record
         transaction = Transaction(
             amount=amount,
             user_id=current_user_id,
             group_id=group_id,
-            transaction_type=TransactionType.CONTRIBUTION,  # Enum value here
+            transaction_type=TransactionType.CONTRIBUTION,
             status='pending',
             mpesa_request_id=response.get('CheckoutRequestID'),
             reference=response.get('MerchantRequestID'),
@@ -468,31 +488,29 @@ def initiate_mpesa_contribution(group_id):
         )
         db.session.add(transaction)
         db.session.commit()
-        
+
+        # Update group's current amount
+        group.current_amount += transaction.amount  # Use the correct attribute
+        db.session.commit()
+
         return jsonify({
             "message": "Payment request sent to your phone",
             "response": response
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 @group_bp.route('/mpesa/callback', methods=['POST'])
 def mpesa_callback():
-    """Handle M-Pesa callback"""
     data = request.get_json()
     current_app.logger.info(f"MPesa callback received: {data}")
     
-    # Verify the  is from M-Pesa
-    # In production, you should validate the callback signature
-    
-    # Process the callback
     try:
         result_code = data['Body']['stkCallback']['ResultCode']
         checkout_request_id = data['Body']['stkCallback']['CheckoutRequestID']
         
-        # Find the transaction
         transaction = Transaction.query.filter_by(
             mpesa_request_id=checkout_request_id
         ).first()
@@ -510,42 +528,31 @@ def mpesa_callback():
             group = Group.query.get(transaction.group_id)
             if group:
                 group.current_amount += transaction.amount
+                db.session.commit()  # Commit after amount update
+                
+                # Use NotificationService to notify all members
+                try:
+                    NotificationService.notify_group_members_about_contribution(
+                        group_id=group.id,
+                        contributor_id=transaction.user_id,
+                        amount=transaction.amount,
+                        transaction_id=transaction.id
+                    )
+                    current_app.logger.info(f"Notification sent for transaction {transaction.id}")
+                except Exception as e:
+                    current_app.logger.error(f"Failed to send notification: {str(e)}")
                 
             db.session.commit()
-            
             current_app.logger.info(f"Transaction {transaction.id} completed successfully")
         else:
             # Failed
             transaction.status = 'failed'
             transaction.failure_reason = data['Body']['stkCallback']['ResultDesc']
             db.session.commit()
-            current_app.logger.error(f"Transaction {transaction.id} failed: {transaction.failure_reason}")
             
         return jsonify({"status": "received"}), 200
         
     except Exception as e:
         current_app.logger.error(f"Error processing callback: {str(e)}")
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
-    
-    
-@group_bp.route('/transactions/<string:reference>', methods=['GET'])
-@jwt_required()
-def get_transaction_status(reference):
-    """Check transaction status"""
-    transaction = Transaction.query.filter_by(reference=reference).first()
-    
-    if not transaction:
-        return jsonify({"error": "Transaction not found"}), 404
-    
-    # Check if current user is allowed to view this transaction
-    current_user_id = get_jwt_identity()
-    if transaction.user_id != current_user_id and not Group.get_member_status(transaction.group_id, current_user_id) == 'admin':
-        return jsonify({"error": "Not authorized"}), 403
-    
-    return jsonify({
-        "status": transaction.status,
-        "amount": transaction.amount,
-        "created_at": transaction.created_at.isoformat(),
-        "mpesa_confirmation_code": transaction.mpesa_confirmation_code,
-        "failure_reason": transaction.failure_reason
-    }), 200
